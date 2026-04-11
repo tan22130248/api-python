@@ -48,7 +48,6 @@ async def tts_convert(request: TTSRequest):
         if len(request.text) > 5000:
             raise HTTPException(status_code=400, detail="Text không được vượt quá 5000 ký tự")
         
-        # Import here to avoid circular imports
         from app.services.tts_service import convert_text_to_speech
         
         filename = convert_text_to_speech(request.text)
