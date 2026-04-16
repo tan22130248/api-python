@@ -212,3 +212,47 @@ async def upload_image(file: UploadFile = File(...)):
         import traceback
         print(f"Error uploading image: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Error uploading image: {str(e)}")
+
+
+@router.post("/upload-audio")
+async def upload_audio(file: UploadFile = File(...)):
+    """
+    Upload audio file to Cloudinary
+    Frontend sends audio file, we upload to Cloudinary and return URL
+    """
+    try:
+        if not file.filename:
+            raise HTTPException(status_code=400, detail="No file provided")
+        
+        if not file.content_type.startswith('audio/'):
+            raise HTTPException(status_code=400, detail="File must be an audio file")
+        
+        import cloudinary.uploader
+        from io import BytesIO
+        
+        contents = await file.read()
+        
+        result = cloudinary.uploader.upload(
+            BytesIO(contents),
+            folder="audio_uploads",
+            resource_type="auto",
+            public_id=f"audio_{int(datetime.now().timestamp())}",
+            type="upload"
+        )
+        
+        if result.get('secure_url'):
+            return {
+                "success": True,
+                "message": "Audio uploaded successfully",
+                "audio_url": result['secure_url'],
+                "public_id": result.get('public_id')
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Upload to Cloudinary failed")
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        print(f"Error uploading audio: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Error uploading audio: {str(e)}")
