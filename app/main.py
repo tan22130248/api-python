@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from .api import tts, image, canvas
+from .api import tts, image, canvas, pronunciation
 from .core.config import init_cloudinary
 import logging
 import os
@@ -30,6 +30,7 @@ init_cloudinary()
 app.include_router(tts.router, prefix="/api/tts", tags=["TTS"])
 app.include_router(image.router, prefix="/api/image", tags=["Image"])
 app.include_router(canvas.router, prefix="/api/canvas", tags=["Canvas"])
+app.include_router(pronunciation.router, prefix="/api/pronunciation", tags=["Pronunciation"])
 
 from app.services.canvas_service import ICONS_DIR, CANVAS_EXPORTS_DIR
 if os.path.exists(CANVAS_EXPORTS_DIR):
