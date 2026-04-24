@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from .api import tts, image, canvas, pronunciation
+from .api import tts, image, canvas, pronunciation, docx
 from .core.config import init_cloudinary
 import logging
 import os
@@ -31,6 +31,7 @@ app.include_router(tts.router, prefix="/api/tts", tags=["TTS"])
 app.include_router(image.router, prefix="/api/image", tags=["Image"])
 app.include_router(canvas.router, prefix="/api/canvas", tags=["Canvas"])
 app.include_router(pronunciation.router, prefix="/api/pronunciation", tags=["Pronunciation"])
+app.include_router(docx.router, tags=["DOCX"])
 
 from app.services.canvas_service import ICONS_DIR, CANVAS_EXPORTS_DIR
 if os.path.exists(CANVAS_EXPORTS_DIR):
@@ -69,4 +70,4 @@ async def root():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8001)
