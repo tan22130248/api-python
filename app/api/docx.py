@@ -7,6 +7,8 @@ from docx.shared import Pt, RGBColor, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 import io
 import logging
+import urllib.request
+import urllib.error
 
 router = APIRouter(prefix="/api/docx", tags=["docx"])
 logger = logging.getLogger(__name__)
@@ -27,6 +29,7 @@ class QuestionDTO(BaseModel):
     numberQuestions: Optional[int] = None
     answers: Optional[List[AnswerDTO]] = None
     audioUrl: Optional[str] = None
+    imageUrl: Optional[str] = None
     transcript: Optional[str] = None
     orderIndex: Optional[int] = None
     
@@ -46,6 +49,7 @@ class CreateTestRequest(BaseModel):
     grade: Optional[str] = None
     duration: int
     description: Optional[str] = None
+    includeAnswers: Optional[bool] = True
     questions: List[QuestionDTO]
 
 @router.post("/generate-test")
@@ -80,7 +84,7 @@ async def generate_test_docx(request: CreateTestRequest):
         # Add questions
         for idx, question in enumerate(request.questions, 1):
             if question.type == "MULTIPLE_CHOICE":
-                _add_multiple_choice_question(doc, idx, question)
+                _add_multiple_choice_question(doc, idx, question, request.includeAnswers)
             elif question.type == "AUDIO":
                 _add_audio_question(doc, idx, question)
             
@@ -107,7 +111,7 @@ async def generate_test_docx(request: CreateTestRequest):
         logger.error(f"Error generating DOCX: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error generating DOCX: {str(e)}")
 
-def _add_multiple_choice_question(doc, question_num: int, question: QuestionDTO):
+def _add_multiple_choice_question(doc, question_num: int, question: QuestionDTO, include_answers: bool = True):
     """Add a multiple choice question to the document"""
     
     # Question header
@@ -117,6 +121,10 @@ def _add_multiple_choice_question(doc, question_num: int, question: QuestionDTO)
     content = question.content if question.content else ""
     content_para = doc.add_paragraph(f"Nội dung: {content}")
     content_para.paragraph_format.left_indent = Inches(0.25)
+
+    if question.imageUrl:
+        doc.add_paragraph("Hình ảnh:")
+        _add_image_from_url(doc, question.imageUrl)
     
     # Points
     points_para = doc.add_paragraph(f"Điểm: {question.points}")
@@ -128,10 +136,26 @@ def _add_multiple_choice_question(doc, question_num: int, question: QuestionDTO)
         for answer in question.answers:
             answer_content = answer.content if answer.content else ""
             answer_text = f"{answer.label}. {answer_content}"
-            if answer.isCorrect:
+            if include_answers and answer.isCorrect:
                 answer_text += " ✓ (Đáp án đúng)"
             answer_para = doc.add_paragraph(answer_text)
             answer_para.paragraph_format.left_indent = Inches(0.5)
+
+
+def _add_image_from_url(doc, image_url: str):
+    try:
+        with urllib.request.urlopen(image_url, timeout=15) as response:
+            image_bytes = response.read()
+            image_stream = io.BytesIO(image_bytes)
+            image_para = doc.add_paragraph()
+            run = image_para.add_run()
+            run.add_picture(image_stream, width=Inches(5.5))
+            image_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    except Exception as e:
+        logger.warning(f"Cannot download image from URL '{image_url}': {e}")
+        fallback_para = doc.add_paragraph(f"Hình ảnh: {image_url}")
+        fallback_para.paragraph_format.left_indent = Inches(0.25)
+
 
 def _add_audio_question(doc, question_num: int, question: QuestionDTO):
     """Add an audio question to the document"""
@@ -149,14 +173,11 @@ def _add_audio_question(doc, question_num: int, question: QuestionDTO):
     points_para.paragraph_format.left_indent = Inches(0.25)
     
     # Audio info
-    if question.audioUrl:
-        audio_para = doc.add_paragraph(f"Tệp âm thanh: {question.audioUrl}")
-        audio_para.paragraph_format.left_indent = Inches(0.25)
+    # Không xuất đường dẫn audio vào DOCX nếu chỉ cần nội dung câu hỏi âm thanh
     
-    # Transcript
-    if question.transcript:
-        transcript_para = doc.add_paragraph(f"Phiên âm: {question.transcript}")
-        transcript_para.paragraph_format.left_indent = Inches(0.25)
+    if question.imageUrl:
+        doc.add_paragraph("Hình ảnh:")
+        _add_image_from_url(doc, question.imageUrl)
 
 @router.post("/generate-test/stream")
 async def generate_test_docx_stream(request: CreateTestRequest):
@@ -188,7 +209,7 @@ async def generate_test_docx_stream(request: CreateTestRequest):
         # Add questions
         for idx, question in enumerate(request.questions, 1):
             if question.type == "MULTIPLE_CHOICE":
-                _add_multiple_choice_question(doc, idx, question)
+                _add_multiple_choice_question(doc, idx, question, request.includeAnswers)
             elif question.type == "AUDIO":
                 _add_audio_question(doc, idx, question)
             doc.add_paragraph()
