@@ -22,7 +22,7 @@ class AnswerDTO(BaseModel):
 
 class QuestionDTO(BaseModel):
     id: Optional[int] = None
-    type: str  # MULTIPLE_CHOICE or AUDIO - accept both string and enum
+    type: str  # MULTIPLE_CHOICE, AUDIO, MATCHING, FILL_IN_BLANK, ESSAY
     content: Optional[str] = None
     points: int = 0
     title: Optional[str] = None
@@ -32,6 +32,18 @@ class QuestionDTO(BaseModel):
     imageUrl: Optional[str] = None
     transcript: Optional[str] = None
     orderIndex: Optional[int] = None
+    
+    # New fields for MATCHING questions
+    matchingPairs: Optional[List[dict]] = None
+    
+    # New fields for FILL_IN_BLANK questions
+    textWithBlanks: Optional[str] = None
+    blanks: Optional[List[dict]] = None
+    
+    # New fields for ESSAY questions
+    prompt: Optional[str] = None
+    maxLength: Optional[int] = None
+    rubric: Optional[str] = None
     
     # Custom validator to handle both string and enum values
     @field_validator('type', mode='before')
@@ -87,6 +99,12 @@ async def generate_test_docx(request: CreateTestRequest):
                 _add_multiple_choice_question(doc, idx, question, request.includeAnswers)
             elif question.type == "AUDIO":
                 _add_audio_question(doc, idx, question)
+            elif question.type == "MATCHING":
+                _add_matching_question(doc, idx, question, request.includeAnswers)
+            elif question.type == "FILL_IN_BLANK":
+                _add_fill_in_blank_question(doc, idx, question, request.includeAnswers)
+            elif question.type == "ESSAY":
+                _add_essay_question(doc, idx, question)
             
             doc.add_paragraph()  # Add spacing between questions
         
@@ -119,16 +137,12 @@ def _add_multiple_choice_question(doc, question_num: int, question: QuestionDTO,
     
     # Question content - handle null/undefined
     content = question.content if question.content else ""
-    content_para = doc.add_paragraph(f"Nội dung: {content}")
+    content_para = doc.add_paragraph(f"Nội dung: {content} (Điểm: {question.points})")
     content_para.paragraph_format.left_indent = Inches(0.25)
 
     if question.imageUrl:
         doc.add_paragraph("Hình ảnh:")
         _add_image_from_url(doc, question.imageUrl)
-    
-    # Points
-    points_para = doc.add_paragraph(f"Điểm: {question.points}")
-    points_para.paragraph_format.left_indent = Inches(0.25)
     
     # Answers
     doc.add_paragraph("Các đáp án:")
@@ -165,12 +179,8 @@ def _add_audio_question(doc, question_num: int, question: QuestionDTO):
     
     # Question content - handle null/undefined
     content = question.content if question.content else ""
-    content_para = doc.add_paragraph(f"Nội dung: {content}")
+    content_para = doc.add_paragraph(f"Nội dung: {content} (Điểm: {question.points})")
     content_para.paragraph_format.left_indent = Inches(0.25)
-    
-    # Points
-    points_para = doc.add_paragraph(f"Điểm: {question.points}")
-    points_para.paragraph_format.left_indent = Inches(0.25)
     
     # Audio info
     # Không xuất đường dẫn audio vào DOCX nếu chỉ cần nội dung câu hỏi âm thanh
@@ -178,6 +188,120 @@ def _add_audio_question(doc, question_num: int, question: QuestionDTO):
     if question.imageUrl:
         doc.add_paragraph("Hình ảnh:")
         _add_image_from_url(doc, question.imageUrl)
+
+
+def _add_matching_question(doc, question_num: int, question: QuestionDTO, include_answers: bool = True):
+    """Add a matching question to the document"""
+    
+    # Question header
+    header = doc.add_heading(f"Câu {question_num}: Nối các cặp từ", level=2)
+    
+    # Question content
+    content = question.content if question.content else ""
+    content_para = doc.add_paragraph(f"Nội dung: {content} (Điểm: {question.points})")
+    content_para.paragraph_format.left_indent = Inches(0.25)
+    
+    # Create table for matching pairs
+    if question.matchingPairs:
+        table = doc.add_table(rows=1, cols=2)
+        table.style = 'Light Grid Accent 1'
+        
+        # Header row - swap columns if no answers
+        hdr_cells = table.rows[0].cells
+        if include_answers:
+            hdr_cells[0].text = 'Cột trái'
+            hdr_cells[1].text = 'Cột phải'
+        else:
+            hdr_cells[0].text = 'Cột phải'
+            hdr_cells[1].text = 'Cột trái'
+        
+        # Add matching pairs - swap columns if no answers
+        for pair in question.matchingPairs:
+            row_cells = table.add_row().cells
+            if include_answers:
+                row_cells[0].text = pair.get('left', '')
+                row_cells[1].text = pair.get('right', '')
+            else:
+                # For student version: show right column first, left column second
+                row_cells[0].text = pair.get('right', '')
+                row_cells[1].text = pair.get('left', '')
+                
+                # Set black color for text
+                for cell in row_cells:
+                    for paragraph in cell.paragraphs:
+                        for run in paragraph.runs:
+                            run.font.color.rgb = RGBColor(0, 0, 0)  # Black color
+        
+        # Add empty row with "..." for student to fill answers if no answers
+        if not include_answers:
+            empty_row = table.add_row().cells
+            empty_row[0].text = '...'
+            empty_row[1].text = '...'
+            # Set black color for the dots
+            for cell in empty_row:
+                for paragraph in cell.paragraphs:
+                    for run in paragraph.runs:
+                        run.font.color.rgb = RGBColor(0, 0, 0)
+
+
+def _add_fill_in_blank_question(doc, question_num: int, question: QuestionDTO, include_answers: bool = True):
+    """Add a fill-in-the-blank question to the document"""
+    
+    # Question header
+    header = doc.add_heading(f"Câu {question_num}: Điền từ vào chỗ trống", level=2)
+    
+    # Question content
+    content = question.content if question.content else ""
+    content_para = doc.add_paragraph(f"Nội dung: {content} (Điểm: {question.points})")
+    content_para.paragraph_format.left_indent = Inches(0.25)
+    
+    # Display text with blanks
+    if question.textWithBlanks:
+        # Replace blank markers with underscores
+        display_text = question.textWithBlanks
+        if question.blanks:
+            for blank in question.blanks:
+                blank_id = blank.get('id', '')
+                display_text = display_text.replace(f'[BLANK_{blank_id}]', '___________')
+        
+        text_para = doc.add_paragraph(f"Đoạn văn: {display_text}")
+        text_para.paragraph_format.left_indent = Inches(0.25)
+        
+        # Show answers if requested
+        if include_answers and question.blanks:
+            doc.add_paragraph("Đáp án:")
+            for blank in question.blanks:
+                answer_text = f"Chỗ trống {blank.get('id', '')}: {blank.get('correctAnswer', '')}"
+                answer_para = doc.add_paragraph(answer_text)
+                answer_para.paragraph_format.left_indent = Inches(0.5)
+
+
+def _add_essay_question(doc, question_num: int, question: QuestionDTO):
+    """Add an essay question to the document"""
+    
+    # Question header
+    header = doc.add_heading(f"Câu {question_num}: Viết bài", level=2)
+    
+    # Question content
+    content = question.content if question.content else ""
+    content_para = doc.add_paragraph(f"Nội dung: {content} (Điểm: {question.points})")
+    content_para.paragraph_format.left_indent = Inches(0.25)
+    
+    # Essay prompt
+    if question.prompt:
+        prompt_para = doc.add_paragraph(f"Yêu cầu: {question.prompt}")
+        prompt_para.paragraph_format.left_indent = Inches(0.25)
+    
+    # Add space for answer
+    doc.add_paragraph("Trả lời:")
+    for i in range(8):  # Add more lines for essay
+        doc.add_paragraph("_" * 80)
+    
+    # Rubric if available
+    if question.rubric:
+        rubric_para = doc.add_paragraph(f"Tiêu chí đánh giá: {question.rubric}")
+        rubric_para.paragraph_format.left_indent = Inches(0.25)
+        rubric_para.runs[0].italic = True
 
 @router.post("/generate-test/stream")
 async def generate_test_docx_stream(request: CreateTestRequest):
