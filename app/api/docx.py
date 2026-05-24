@@ -61,6 +61,7 @@ class CreateTestRequest(BaseModel):
     grade: Optional[str] = None
     duration: int
     description: Optional[str] = None
+    lessonContentName: Optional[str] = None
     includeAnswers: Optional[bool] = True
     questions: List[QuestionDTO]
 
@@ -78,6 +79,14 @@ async def generate_test_docx(request: CreateTestRequest):
         # Add title
         title = doc.add_heading(request.name, level=1)
         title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+        # Add lesson content name centered below the title (if provided)
+        if getattr(request, 'lessonContentName', None):
+            lesson_para = doc.add_paragraph()
+            lesson_run = lesson_para.add_run(str(request.lessonContentName))
+            lesson_run.bold = True
+            lesson_run.font.size = Pt(14)
+            lesson_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         
         # Add metadata
         metadata = doc.add_paragraph()
