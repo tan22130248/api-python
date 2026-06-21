@@ -289,12 +289,48 @@ def process_image_operations(source: str, operations: list, return_type: str = "
                 color_hex = op.get("color", "#000000").lstrip('#')
                 color = tuple(int(color_hex[i:i+2], 16) for i in (0, 2, 4)) + (255,)
                 
-                draw = ImageDraw.Draw(img)
-                try:
-                    font = ImageFont.truetype("arial.ttf", font_size)
-                except:
+                bold = bool(op.get("bold", False))
+                italic = bool(op.get("italic", False))
+                underline = bool(op.get("underline", False))
+
+                if bold and italic:
+                    font_candidates = [
+                        "arialbi.ttf",
+                        "/usr/share/fonts/truetype/dejavu/DejaVuSans-BoldOblique.ttf",
+                    ]
+                elif bold:
+                    font_candidates = [
+                        "arialbd.ttf",
+                        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+                    ]
+                elif italic:
+                    font_candidates = [
+                        "ariali.ttf",
+                        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Oblique.ttf",
+                    ]
+                else:
+                    font_candidates = [
+                        "arial.ttf",
+                        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                    ]
+
+                font = None
+                for font_name in font_candidates:
+                    try:
+                        font = ImageFont.truetype(font_name, font_size)
+                        break
+                    except (OSError, IOError):
+                        continue
+                if font is None:
                     font = ImageFont.load_default()
+
+                draw = ImageDraw.Draw(img)
                 draw.text((x, y), text, fill=color, font=font)
+                if underline and text:
+                    text_bbox = draw.textbbox((x, y), text, font=font)
+                    line_y = min(img.size[1] - 1, text_bbox[3] + max(1, font_size // 30))
+                    line_width = max(1, font_size // 18)
+                    draw.line((text_bbox[0], line_y, text_bbox[2], line_y), fill=color, width=line_width)
                 
             elif op_type == "watermark":
                 text = op.get("text", "WATERMARK")
