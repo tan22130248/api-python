@@ -185,7 +185,47 @@ def process_image_operations(source: str, operations: list, return_type: str = "
                         bottom = int(box[3] * h / 100)
                     else:
                         left, top, right, bottom = int(box[0]), int(box[1]), int(box[2]), int(box[3])
+                    
+                    # Ensure coordinates are within image bounds
+                    w, h = img.size
+                    left = max(0, min(w - 1, left))
+                    top = max(0, min(h - 1, top))
+                    right = max(left + 1, min(w, right))
+                    bottom = max(top + 1, min(h, bottom))
+                    
                     img = img.crop((left, top, right, bottom))
+                    
+                    # Support multiple crop shapes
+                    crop_shape = op.get("shape", "rectangle")
+                    if crop_shape == "circle":
+                        mask = Image.new("L", img.size, 0)
+                        draw = ImageDraw.Draw(mask)
+                        draw.ellipse((0, 0, img.size[0], img.size[1]), fill=255)
+                        orig_alpha = img.split()[3]
+                        new_alpha = Image.composite(orig_alpha, Image.new("L", img.size, 0), mask)
+                        img.putalpha(new_alpha)
+                    elif crop_shape == "rounded":
+                        radius = int(op.get("radius", min(img.size) // 10))
+                        mask = Image.new("L", img.size, 0)
+                        draw = ImageDraw.Draw(mask)
+                        draw.rounded_rectangle((0, 0, img.size[0], img.size[1]), radius=radius, fill=255)
+                        orig_alpha = img.split()[3]
+                        new_alpha = Image.composite(orig_alpha, Image.new("L", img.size, 0), mask)
+                        img.putalpha(new_alpha)
+                    elif crop_shape == "freeform":
+                        points = op.get("points", [])
+                        if len(points) >= 3:
+                            pts = []
+                            for pt in points:
+                                px = int(pt[0] * w / 100) - left
+                                py = int(pt[1] * h / 100) - top
+                                pts.append((px, py))
+                            mask = Image.new("L", img.size, 0)
+                            draw = ImageDraw.Draw(mask)
+                            draw.polygon(pts, fill=255)
+                            orig_alpha = img.split()[3]
+                            new_alpha = Image.composite(orig_alpha, Image.new("L", img.size, 0), mask)
+                            img.putalpha(new_alpha)
                     
             elif op_type == "rotate":
                 angle = float(op.get("angle", 0))
