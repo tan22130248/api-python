@@ -8,7 +8,8 @@ from app.api import (
     pronunciation,
     docx,
     translate,
-    file_extract
+    file_extract,
+    translate_file
 )
 from .core.config import init_cloudinary
 import logging
@@ -42,6 +43,7 @@ app.include_router(pronunciation.router, prefix="/api/pronunciation", tags=["Pro
 app.include_router(docx.router, tags=["DOCX"])
 app.include_router(translate.router, prefix="/api/translate", tags=["Translation"])
 app.include_router(file_extract.router)
+app.include_router(translate_file.router)
 
 from app.services.canvas_service import ICONS_DIR, CANVAS_EXPORTS_DIR
 if os.path.exists(CANVAS_EXPORTS_DIR):
