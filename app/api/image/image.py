@@ -71,6 +71,8 @@ class ImageProcessRequest(BaseModel):
     source: str
     operations: List[dict]
     return_type: str = "base64"
+    export_format: str = "png"
+    quality: int = 90
 
 class ImageProcessResponse(BaseModel):
     success: bool
@@ -89,7 +91,13 @@ async def process_image(request: ImageProcessRequest):
 
         from app.services.image_service import process_image_operations
 
-        filename = process_image_operations(request.source, request.operations, request.return_type)
+        filename = process_image_operations(
+            request.source,
+            request.operations,
+            request.return_type,
+            request.export_format,
+            request.quality,
+        )
 
         if not filename:
             raise HTTPException(status_code=400, detail="Lỗi xử lý ảnh")

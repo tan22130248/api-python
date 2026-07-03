@@ -1,4 +1,4 @@
-from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageOps
+from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageOps, ImageFilter
 import os
 from datetime import datetime
 import random
@@ -132,7 +132,7 @@ def load_image(source: str) -> Image.Image:
             return Image.open(local_path)
         raise Exception(f"Image source not found: {source}")
 
-def process_image_operations(source: str, operations: list, return_type: str = "file") -> str:
+def process_image_operations(source: str, operations: list, return_type: str = "file", export_format: str = "png", quality: int = 90) -> str:
     """
     Process image using Pillow based on list of operations:
     - crop: box: [left, top, right, bottom], is_percentage: bool
@@ -150,6 +150,15 @@ def process_image_operations(source: str, operations: list, return_type: str = "
     - merge: images: list, layout: 'horizontal' | 'vertical' | 'grid', spacing: int, background_color: hex
     - color_adjust: contrast: float, color: float, sharpness: float
     - create_transparent: width: int, height: int
+    - blur: radius: float
+    - sharpen: amount: float
+    - border: thickness: int, color: hex
+    - shadow: offset_x: int, offset_y: int, blur: float, color: hex, opacity: float
+
+    Output:
+    - return_type: 'base64' | 'cloudinary' | <file>
+    - export_format: 'png' | 'jpg' (jpg flattens transparency onto white)
+    - quality: int (JPEG quality, default 90)
     """
     try:
         # Check if we should create a transparent background image
@@ -477,17 +486,79 @@ def process_image_operations(source: str, operations: list, return_type: str = "
                     sharpness_factor = float(op["sharpness"])
                     enhancer = ImageEnhance.Sharpness(img)
                     img = enhancer.enhance(sharpness_factor)
-                
+
+            elif op_type == "blur":
+                radius = float(op.get("radius", 2))
+                img = img.filter(ImageFilter.GaussianBlur(radius=radius))
+
+            elif op_type == "sharpen":
+                amount = float(op.get("amount", 2))
+                percent = int(max(0, amount) * 75)
+                img = img.filter(ImageFilter.UnsharpMask(radius=2, percent=percent, threshold=3))
+
+            elif op_type == "border":
+                thickness = int(op.get("thickness", 10))
+                color_hex = op.get("color", "#000000").lstrip('#')
+                if len(color_hex) == 6:
+                    border_color = tuple(int(color_hex[i:i+2], 16) for i in (0, 2, 4)) + (255,)
+                elif len(color_hex) == 8:
+                    border_color = tuple(int(color_hex[i:i+2], 16) for i in (0, 2, 4, 6))
+                else:
+                    border_color = (0, 0, 0, 255)
+                img = ImageOps.expand(img, border=thickness, fill=border_color)
+
+            elif op_type == "shadow":
+                offset_x = int(op.get("offset_x", 10))
+                offset_y = int(op.get("offset_y", 10))
+                blur_radius = float(op.get("blur", 8))
+                color_hex = op.get("color", "#000000").lstrip('#')
+                shadow_opacity = float(op.get("opacity", 0.5))
+                if len(color_hex) >= 6:
+                    sc = tuple(int(color_hex[i:i+2], 16) for i in (0, 2, 4))
+                else:
+                    sc = (0, 0, 0)
+                shadow_rgba = sc + (int(255 * shadow_opacity),)
+                margin = int(blur_radius * 2 + max(abs(offset_x), abs(offset_y)))
+                canvas_w = img.size[0] + margin * 2
+                canvas_h = img.size[1] + margin * 2
+                # Build shadow from the image's alpha silhouette
+                alpha = img.split()[3]
+                shadow_layer = Image.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0))
+                solid = Image.new("RGBA", img.size, shadow_rgba)
+                shadow_layer.paste(solid, (margin + offset_x, margin + offset_y), alpha)
+                shadow_layer = shadow_layer.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+                base = Image.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0))
+                base = Image.alpha_composite(base, shadow_layer)
+                base.paste(img, (margin, margin), img)
+                img = base
+
+        # Determine output format (jpg flattens transparency onto white)
+        fmt = (export_format or "png").lower()
+        is_jpeg = fmt in ("jpg", "jpeg")
+
+        def _flatten_for_jpeg(image):
+            if image.mode != "RGBA":
+                image = image.convert("RGBA")
+            bg = Image.new("RGBA", image.size, (255, 255, 255, 255))
+            return Image.alpha_composite(bg, image).convert("RGB")
+
         if return_type == "base64":
             buffered = io.BytesIO()
+            if is_jpeg:
+                _flatten_for_jpeg(img).save(buffered, format="JPEG", quality=int(quality), optimize=True)
+                img_str = base64.b64encode(buffered.getvalue()).decode()
+                return f"data:image/jpeg;base64,{img_str}"
             img.save(buffered, format="PNG")
             img_str = base64.b64encode(buffered.getvalue()).decode()
             return f"data:image/png;base64,{img_str}"
-            
+
         elif return_type == "cloudinary":
             import cloudinary.uploader
             buffered = io.BytesIO()
-            img.save(buffered, format="PNG")
+            if is_jpeg:
+                _flatten_for_jpeg(img).save(buffered, format="JPEG", quality=int(quality), optimize=True)
+            else:
+                img.save(buffered, format="PNG")
             buffered.seek(0)
             upload_result = cloudinary.uploader.upload(
                 buffered,
@@ -496,17 +567,20 @@ def process_image_operations(source: str, operations: list, return_type: str = "
                 public_id=f"edited_{int(datetime.now().timestamp())}"
             )
             return upload_result.get("secure_url") or ""
-            
+
         else:
-            save_format = "PNG"
             if not os.path.exists(IMAGES_OUTPUT_DIR):
                 os.makedirs(IMAGES_OUTPUT_DIR)
-                
+
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-            filename = f"edited_image_{timestamp}.{save_format.lower()}"
-            filepath = os.path.join(IMAGES_OUTPUT_DIR, filename)
-            
-            img.save(filepath, format=save_format)
+            if is_jpeg:
+                filename = f"edited_image_{timestamp}.jpg"
+                filepath = os.path.join(IMAGES_OUTPUT_DIR, filename)
+                _flatten_for_jpeg(img).save(filepath, format="JPEG", quality=int(quality), optimize=True)
+            else:
+                filename = f"edited_image_{timestamp}.png"
+                filepath = os.path.join(IMAGES_OUTPUT_DIR, filename)
+                img.save(filepath, format="PNG")
             return os.path.abspath(filepath)
         
     except Exception as e:
