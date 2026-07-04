@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, File, UploadFile
 from app.schemas.image_schema import ImageRequest, ImageResponse
 from pydantic import BaseModel
+from typing import List
 import os
 
 router = APIRouter()
@@ -65,3 +66,49 @@ async def generate_image(request: ImageRequest):
         raise he
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Lỗi: {str(e)}")
+
+class ImageProcessRequest(BaseModel):
+    source: str
+    operations: List[dict]
+    return_type: str = "base64"
+    export_format: str = "png"
+    quality: int = 90
+
+class ImageProcessResponse(BaseModel):
+    success: bool
+    message: str
+    filename: str = None
+    error: str = None
+
+@router.post("/process", response_model=ImageProcessResponse)
+async def process_image(request: ImageProcessRequest):
+    """
+    Process image using Pillow based on sequential operations
+    """
+    try:
+        if not request.source or request.source.strip() == "":
+            raise HTTPException(status_code=400, detail="Source không được để trống")
+
+        from app.services.image_service import process_image_operations
+
+        filename = process_image_operations(
+            request.source,
+            request.operations,
+            request.return_type,
+            request.export_format,
+            request.quality,
+        )
+
+        if not filename:
+            raise HTTPException(status_code=400, detail="Lỗi xử lý ảnh")
+
+        return ImageProcessResponse(
+            success=True,
+            message="Xử lý ảnh thành công",
+            filename=filename
+        )
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lỗi: {str(e)}")
