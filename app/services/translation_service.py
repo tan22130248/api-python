@@ -1,4 +1,5 @@
 import logging
+import os
 import re
 from typing import Dict, List, Tuple
 
@@ -17,7 +18,9 @@ SUPPORTED_LANGUAGES = {
     "en": "English",
 }
 
-MAX_SEGMENT_LENGTH = 512 
+MAX_SEGMENT_LENGTH = 512
+MODEL_CACHE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'model_cache'))
+os.makedirs(MODEL_CACHE_DIR, exist_ok=True)
 
 
 def _load_model(source_lang: str, target_lang: str):
@@ -33,12 +36,12 @@ def _load_model(source_lang: str, target_lang: str):
     if not model_name:
         raise ValueError(f"Không hỗ trợ cặp ngôn ngữ: {source_lang} → {target_lang}")
 
-    logger.info(f"Loading MarianMT model: {model_name} ...")
+    logger.info(f"Loading MarianMT model: {model_name} (cache: {MODEL_CACHE_DIR}) ...")
     try:
         from transformers import MarianMTModel, MarianTokenizer
 
-        tokenizer = MarianTokenizer.from_pretrained(model_name)
-        model = MarianMTModel.from_pretrained(model_name)
+        tokenizer = MarianTokenizer.from_pretrained(model_name, cache_dir=MODEL_CACHE_DIR)
+        model = MarianMTModel.from_pretrained(model_name, cache_dir=MODEL_CACHE_DIR)
         model.eval()
 
         _tokenizers[key] = tokenizer

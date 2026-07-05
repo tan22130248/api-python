@@ -1,4 +1,4 @@
-from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageOps, ImageFilter
+from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageOps, ImageFilter, ImageChops
 import os
 from datetime import datetime
 import random
@@ -149,6 +149,7 @@ def process_image_operations(source: str, operations: list, return_type: str = "
     - transparency: opacity: float (0.0 to 1.0)
     - filter: name: 'grayscale' | 'sepia' | 'invert'
     - tint: color: hex, amount: float (0.0 to 1.0)
+    - recolor_icon: color: hex, threshold: int (0-255), strength: float (0.0 to 1.0)
     - text: text: str, x: int, y: int, font_size: int, color: hex
     - watermark: text: str, opacity: float, color: hex
     - overlay: overlay_image_url: str, x: int, y: int, width: int, height: int
@@ -295,6 +296,34 @@ def process_image_operations(source: str, operations: list, return_type: str = "
                 tint_color = tuple(int(color_hex[i:i+2], 16) for i in (0, 2, 4))
                 tint_img = Image.new("RGBA", img.size, tint_color + (255,))
                 img = Image.blend(img, tint_img, float(op.get("amount", 0.5)))
+                
+            elif op_type == "recolor_icon":
+                color_hex = op.get("color", "#7c3aed").lstrip('#')
+                if len(color_hex) != 6:
+                    raise Exception("Màu icon không hợp lệ")
+
+                target_color = tuple(int(color_hex[i:i+2], 16) for i in (0, 2, 4))
+                threshold = max(0, min(255, int(op.get("threshold", 245))))
+                strength = max(0.0, min(1.0, float(op.get("strength", 1.0))))
+
+                icon_rgba = img.convert("RGBA")
+                original_alpha = icon_rgba.getchannel("A")
+                alpha_min, _ = original_alpha.getextrema()
+
+                if alpha_min < 250:
+                    alpha = original_alpha
+                else:
+                    luminance = ImageOps.grayscale(icon_rgba.convert("RGB"))
+                    # Treat near-white pixels as background, then color visible strokes/fills.
+                    ink_alpha = luminance.point(lambda p: 0 if p >= threshold else int((threshold - p) * 255 / max(1, threshold)))
+                    alpha = ImageChops.multiply(original_alpha, ink_alpha)
+
+                if strength < 1.0:
+                    alpha = Image.blend(original_alpha, alpha, strength)
+
+                colored = Image.new("RGBA", icon_rgba.size, target_color + (255,))
+                colored.putalpha(alpha)
+                img = colored
                 
             elif op_type == "text":
                 text = op.get("text", "")
