@@ -6,21 +6,42 @@ import cloudinary
 import cloudinary.uploader
 from app.core.config import init_cloudinary
 import logging
+from typing import Optional
 
 def _get_base_dir():
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
+    project_root = os.path.dirname(os.path.dirname(current_dir))
     return project_root
 
 BASE_DIR = _get_base_dir()
 ICONS_DIR = os.path.join(BASE_DIR, "icons")
+CAO_ICONS_DIR = os.path.join(BASE_DIR, "images", "cao_icon")
 CANVAS_EXPORTS_DIR = os.path.join(BASE_DIR, "canvas_exports")
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
+CAO_ICON_CATEGORY = "cao_icon"
+CONTENT_CATEGORY_DIRS = {"dong_vat", "hinh_khoi", "trai_cay", "tien_vietnam"}
+ROOT_CAO_ICON_CATEGORY = "nature"
+CATEGORY_MAP = {
+    "trai_cay": "fruits",
+    "dong_vat": "animals",
+    "hinh_khoi": "shapes",
+    "tien_vietnam": "money",
+    "thien_nhien": "nature",
+}
+CATEGORY_ALIASES = {
+    "fruits": {"fruits", "fruit", "trai_cay"},
+    "animals": {"animals", "animal", "dong_vat"},
+    "shapes": {"shapes", "shape", "hinh_khoi"},
+    "money": {"money", "tien_vietnam"},
+    "nature": {"nature", "thien_nhien"},
+}
 
 os.makedirs(ICONS_DIR, exist_ok=True)
 os.makedirs(CANVAS_EXPORTS_DIR, exist_ok=True)
 
 logger = logging.getLogger(__name__)
 logger.info(f"Icons directory: {ICONS_DIR}")
+logger.info(f"Cao icons directory: {CAO_ICONS_DIR}")
 logger.info(f"Canvas exports directory: {CANVAS_EXPORTS_DIR}")
 
 init_cloudinary()
@@ -180,13 +201,113 @@ def download_icon(url: str, filename: str) -> bool:
         print(f"Error downloading {filename}: {str(e)}")
         return False
 
-def get_all_icons() -> list:
+def _is_safe_child(parent: str, child: str) -> bool:
+    parent_abs = os.path.normcase(os.path.abspath(parent))
+    child_abs = os.path.normcase(os.path.abspath(child))
+    return os.path.commonpath([parent_abs, child_abs]) == parent_abs
+
+
+def _normalize_category(category: Optional[str]) -> Optional[str]:
+    if not category:
+        return None
+
+    category_lower = category.lower()
+    for canonical, aliases in CATEGORY_ALIASES.items():
+        if category_lower in aliases:
+            return canonical
+    return category_lower
+
+
+def _matches_filter(icon: dict, category: Optional[str], style: Optional[str]) -> bool:
+    if category and icon.get("category", "").lower() != _normalize_category(category):
+        return False
+    if style and icon.get("style", "").lower() != style.lower():
+        return False
+    return True
+
+
+def _build_icon_filters(icons: list) -> dict:
+    categories = sorted({icon["category"] for icon in icons if icon.get("category")}, key=str.lower)
+    styles = sorted({icon["style"] for icon in icons if icon.get("style")}, key=str.lower)
+    styles_by_category = {}
+
+    for category_name in categories:
+        styles_by_category[category_name] = sorted(
+            {icon["style"] for icon in icons if icon.get("category") == category_name and icon.get("style")},
+            key=str.lower
+        )
+
+    return {
+        "categories": categories,
+        "styles": styles,
+        "styles_by_category": styles_by_category
+    }
+
+
+def _get_cao_icon_meta(root: str, filepath: str) -> dict:
+    rel_path = os.path.relpath(filepath, root)
+    parts = rel_path.split(os.sep)
+
+    if parts[0] in CONTENT_CATEGORY_DIRS:
+        category = CATEGORY_MAP.get(parts[0], parts[0])
+        style = parts[1] if len(parts) >= 3 else "default"
+    elif len(parts) >= 3:
+        category = parts[0]
+        style = parts[1]
+    elif len(parts) == 2:
+        category = ROOT_CAO_ICON_CATEGORY
+        style = parts[0]
+    else:
+        category = ROOT_CAO_ICON_CATEGORY
+        style = "default"
+
+    icon_key = f"{CAO_ICON_CATEGORY}/" + rel_path.replace(os.sep, "/")
+    icon_id = os.path.splitext(icon_key)[0].replace("/", "__").replace(" ", "_")
+
+    return {
+        "id": icon_id,
+        "name": icon_key,
+        "display_name": os.path.basename(filepath),
+        "path": filepath,
+        "category": category,
+        "style": style,
+        "source": "server",
+        "size": (60, 60)
+    }
+
+
+def _scan_cao_icons() -> list:
+    icons = []
+
+    if not os.path.isdir(CAO_ICONS_DIR):
+        return icons
+
+    for root, _, files in os.walk(CAO_ICONS_DIR):
+        files.sort(key=str.lower)
+        for filename in files:
+            ext = os.path.splitext(filename)[1].lower()
+            if ext not in IMAGE_EXTENSIONS:
+                continue
+
+            filepath = os.path.join(root, filename)
+            icons.append(_get_cao_icon_meta(CAO_ICONS_DIR, filepath))
+
+    return icons
+
+
+def get_all_icon_filters() -> dict:
+    """Get all available icon filters."""
+    return _build_icon_filters(get_all_icons())
+
+
+def get_all_icons(category: Optional[str] = None, style: Optional[str] = None, download_missing: bool = False) -> list:
     """Get all available icons"""
     icons = []
     
     for name, url in ICON_URLS.items():
-        download_icon(url, name)
         filepath = os.path.join(ICONS_DIR, name)
+        if download_missing and not os.path.exists(filepath):
+            download_icon(url, name)
         
         if os.path.exists(filepath):
             try:
@@ -194,19 +315,44 @@ def get_all_icons() -> list:
                 icons.append({
                     "id": name.replace(".png", ""),
                     "name": name,
+                    "display_name": name,
                     "path": filepath,
+                    "category": "default",
+                    "style": "default",
+                    "source": "default",
                     "size": (60, 60)
                 })
             except Exception as e:
                 print(f"Error loading icon {name}: {str(e)}")
     
-    return icons
+    icons.extend(_scan_cao_icons())
+
+    return [icon for icon in icons if _matches_filter(icon, category, style)]
+
+
+def resolve_icon_path(icon_name: str) -> Optional[str]:
+    """Resolve an icon key to a safe local file path."""
+    normalized_name = icon_name.replace("\\", "/").lstrip("/")
+
+    if normalized_name.startswith(f"{CAO_ICON_CATEGORY}/"):
+        rel_path = normalized_name[len(CAO_ICON_CATEGORY) + 1:]
+        filepath = os.path.abspath(os.path.join(CAO_ICONS_DIR, rel_path.replace("/", os.sep)))
+        if _is_safe_child(CAO_ICONS_DIR, filepath) and os.path.isfile(filepath):
+            return filepath
+        return None
+
+    filename = os.path.basename(normalized_name)
+    filepath = os.path.abspath(os.path.join(ICONS_DIR, filename))
+    if _is_safe_child(ICONS_DIR, filepath) and os.path.isfile(filepath):
+        return filepath
+
+    return None
 
 def get_icon_image(icon_name: str) -> Image.Image or None:
     """Get icon image object"""
-    filepath = os.path.join(ICONS_DIR, icon_name)
+    filepath = resolve_icon_path(icon_name)
     
-    if os.path.exists(filepath):
+    if filepath:
         try:
             return Image.open(filepath).convert("RGBA").resize((60, 60))
         except:

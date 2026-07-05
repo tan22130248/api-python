@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException, UploadFile, File, Request
 from fastapi.responses import JSONResponse, FileResponse
 from pydantic import BaseModel, field_validator
-from typing import List
-import os
+from typing import List, Optional
+import mimetypes
 from datetime import datetime
 
 router = APIRouter()
@@ -45,12 +45,13 @@ async def canvas_health():
     }
 
 @router.get("/icons")
-async def get_icons(request: Request):
+async def get_icons(request: Request, category: Optional[str] = None, style: Optional[str] = None):
     """Get all available icons"""
-    from app.services.canvas_service import get_all_icons
+    from app.services.canvas_service import get_all_icons, get_all_icon_filters
     
     try:
-        icons = get_all_icons()
+        icons = get_all_icons(category=category, style=style)
+        filters = get_all_icon_filters()
         return JSONResponse(
             content={
                 "success": True,
@@ -58,10 +59,15 @@ async def get_icons(request: Request):
                     {
                         "id": icon["id"],
                         "name": icon["name"],
+                        "display_name": icon.get("display_name", icon["name"]),
+                        "category": icon.get("category", "default"),
+                        "style": icon.get("style", "default"),
+                        "source": icon.get("source", "default"),
                         "url": str(request.url_for("get_icon_file", icon_name=icon["name"]))
                     }
                     for icon in icons
-                ]
+                ],
+                "filters": filters
             },
             headers={
                 "Access-Control-Allow-Origin": "*",
@@ -72,20 +78,19 @@ async def get_icons(request: Request):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/icon/{icon_name}")
+@router.get("/icon/{icon_name:path}")
 async def get_icon_file(icon_name: str):
     """Get icon image file"""
-    from app.services.canvas_service import ICONS_DIR
+    from app.services.canvas_service import resolve_icon_path
     
     try:
-        # Security: prevent directory traversal
-        icon_name = os.path.basename(icon_name)
-        icon_path = os.path.join(ICONS_DIR, icon_name)
+        icon_path = resolve_icon_path(icon_name)
         
-        if os.path.exists(icon_path):
+        if icon_path:
+            media_type = mimetypes.guess_type(icon_path)[0] or "image/png"
             return FileResponse(
                 icon_path,
-                media_type="image/png",
+                media_type=media_type,
                 headers={
                     "Access-Control-Allow-Origin": "*",
                     "Access-Control-Allow-Methods": "GET,OPTIONS",

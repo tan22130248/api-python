@@ -112,11 +112,11 @@ def load_image(source: str) -> Image.Image:
             parsed = urlparse(source)
             icon_prefix = "/api/canvas/icon/"
             if parsed.path.startswith(icon_prefix):
-                from app.services.canvas_service import ICONS_DIR
+                from app.services.canvas_service import resolve_icon_path
 
-                icon_name = os.path.basename(unquote(parsed.path[len(icon_prefix):]))
-                icon_path = os.path.join(ICONS_DIR, icon_name)
-                if os.path.isfile(icon_path):
+                icon_name = unquote(parsed.path[len(icon_prefix):])
+                icon_path = resolve_icon_path(icon_name)
+                if icon_path:
                     return Image.open(icon_path)
             response = requests.get(source, timeout=15)
             response.raise_for_status()
@@ -126,6 +126,12 @@ def load_image(source: str) -> Image.Image:
     elif os.path.exists(source):
         return Image.open(source)
     else:
+        from app.services.canvas_service import resolve_icon_path
+
+        icon_path = resolve_icon_path(source)
+        if icon_path:
+            return Image.open(icon_path)
+
         # Check if it exists in the outputs directory
         local_path = os.path.join(IMAGES_OUTPUT_DIR, source)
         if os.path.exists(local_path):
