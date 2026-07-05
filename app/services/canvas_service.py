@@ -22,17 +22,17 @@ CAO_ICON_CATEGORY = "cao_icon"
 CONTENT_CATEGORY_DIRS = {"dong_vat", "hinh_khoi", "trai_cay", "tien_vietnam"}
 ROOT_CAO_ICON_CATEGORY = "nature"
 CATEGORY_MAP = {
-    "trai_cay": "fruits",
-    "dong_vat": "animals",
-    "hinh_khoi": "shapes",
+    "trai_cay": "fruit",
+    "dong_vat": "animal",
+    "hinh_khoi": "shape",
     "tien_vietnam": "money",
     "thien_nhien": "nature",
 }
 CATEGORY_ALIASES = {
-    "fruits": {"fruits", "fruit", "trai_cay"},
-    "animals": {"animals", "animal", "dong_vat"},
-    "shapes": {"shapes", "shape", "hinh_khoi"},
-    "money": {"money", "tien_vietnam"},
+    "fruit": {"fruits", "fruit", "trai_cay"},
+    "animal": {"animals", "animal", "dong_vat"},
+    "shape": {"shapes", "shape", "hinh_khoi"},
+    "money": {"money", "tien", "tien_vietnam"},
     "nature": {"nature", "thien_nhien"},
 }
 
