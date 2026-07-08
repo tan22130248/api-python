@@ -1,4 +1,4 @@
-FROM python:3.10-slim
+FROM python:3.11-slim
 
 # Install system dependencies needed for compiling some packages and system libs
 RUN apt-get update && apt-get install -y --no-install-recommends \
