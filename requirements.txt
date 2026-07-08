@@ -5,7 +5,7 @@ python-multipart==0.0.6
 pydantic==2.5.0
 gtts==2.5.1
 cloudinary==1.36.0
-pillow==10.1.0
+pillow>=12.1.0,<13.0.0
 requests==2.31.0
 faster-whisper>=1.2.0
 huggingface-hub<1.17.0
