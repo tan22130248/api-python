@@ -1,0 +1,9 @@
+__pycache__
+*.pyc
+.venv
+.git
+.idea
+.vscode
+audios
+canvas_exports
+images
