@@ -154,7 +154,8 @@ def process_image_operations(source: str, operations: list, return_type: str = "
     - watermark: text: str, opacity: float, color: hex
     - overlay: overlay_image_url: str, x: int, y: int, width: int, height: int
     - chroma_key: color: hex, tolerance: int
-    - merge: images: list, layout: 'horizontal' | 'vertical' | 'grid', spacing: int, background_color: hex
+    - merge: images: list, layout: 'horizontal' | 'vertical' | 'grid', spacing: int,
+      background_color: hex, target_width: int, target_height: int
     - color_adjust: contrast: float, color: float, sharpness: float
     - create_transparent: width: int, height: int
     - blur: radius: float
@@ -452,7 +453,7 @@ def process_image_operations(source: str, operations: list, return_type: str = "
             elif op_type == "merge":
                 merge_sources = op.get("images", [])
                 layout = op.get("layout", "horizontal")
-                spacing = int(op.get("spacing", 0))
+                spacing = max(0, int(op.get("spacing", 0)))
                 bg_hex = op.get("background_color", "#ffffff").lstrip('#')
                 if len(bg_hex) == 6:
                     bg_color = tuple(int(bg_hex[i:i+2], 16) for i in (0, 2, 4)) + (255,)
@@ -469,7 +470,43 @@ def process_image_operations(source: str, operations: list, return_type: str = "
                         print(f"Error loading image for merge: {e}")
                 
                 if len(all_images) > 1:
-                    if layout == "horizontal":
+                    target_width = int(op.get("target_width", 0) or 0)
+                    target_height = int(op.get("target_height", 0) or 0)
+
+                    if target_width > 0 and target_height > 0:
+                        n = len(all_images)
+                        if layout == "vertical":
+                            cols, rows = 1, n
+                        elif layout == "grid":
+                            cols = int(n ** 0.5)
+                            if cols * cols < n:
+                                cols += 1
+                            rows = (n + cols - 1) // cols
+                        else:
+                            cols, rows = n, 1
+
+                        available_width = max(cols, target_width - spacing * (cols - 1))
+                        available_height = max(rows, target_height - spacing * (rows - 1))
+                        cell_w = max(1, available_width // cols)
+                        cell_h = max(1, available_height // rows)
+                        used_width = cell_w * cols + spacing * (cols - 1)
+                        used_height = cell_h * rows + spacing * (rows - 1)
+                        offset_x = max(0, (target_width - used_width) // 2)
+                        offset_y = max(0, (target_height - used_height) // 2)
+
+                        merged_img = Image.new("RGBA", (target_width, target_height), bg_color)
+                        for idx, source_img in enumerate(all_images):
+                            row = idx // cols
+                            col = idx % cols
+                            fitted = source_img.copy()
+                            fitted.thumbnail((cell_w, cell_h), resample=Image.LANCZOS)
+                            cell_x = offset_x + col * (cell_w + spacing)
+                            cell_y = offset_y + row * (cell_h + spacing)
+                            paste_x = cell_x + (cell_w - fitted.size[0]) // 2
+                            paste_y = cell_y + (cell_h - fitted.size[1]) // 2
+                            merged_img.paste(fitted, (paste_x, paste_y), fitted)
+                        img = merged_img
+                    elif layout == "horizontal":
                         total_width = sum(i.size[0] for i in all_images) + spacing * (len(all_images) - 1)
                         max_height = max(i.size[1] for i in all_images)
                         merged_img = Image.new("RGBA", (total_width, max_height), bg_color)
