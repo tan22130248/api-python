@@ -83,3 +83,25 @@ async def root():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8001)
+        "status": "healthy",
+        "service": "AI Service - TTS & Image",
+        "version": "1.0.0"
+    }
+
+@app.get("/")
+async def root():
+    """Root endpoint with API info"""
+    return {
+        "service": "AI Service - Text to Speech & Image Generation",
+        "version": "1.0.0",
+        "endpoints": {
+            "convert": "/api/tts/convert",
+            "generate": "/api/image/generate",
+            "health": "/health",
+            "docs": "/docs"
+        }
+    }
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8001)
