@@ -27,6 +27,7 @@ CATEGORY_MAP = {
     "hinh_khoi": "shape",
     "tien_vietnam": "money",
     "thien_nhien": "nature",
+    "material": "material",
 }
 CATEGORY_ALIASES = {
     "fruit": {"fruits", "fruit", "trai_cay"},
@@ -34,6 +35,8 @@ CATEGORY_ALIASES = {
     "shape": {"shapes", "shape", "hinh_khoi"},
     "money": {"money", "tien", "tien_vietnam"},
     "nature": {"nature", "thien_nhien"},
+    "material": {"material", "material_icons", "md"},
+    "school": {"school", "hoc_tap", "education"},
 }
 
 os.makedirs(ICONS_DIR, exist_ok=True)
@@ -47,6 +50,181 @@ logger.info(f"Canvas exports directory: {CANVAS_EXPORTS_DIR}")
 init_cloudinary()
 
 BASE_OPENMOJI = "https://raw.githubusercontent.com/hfg-gmuend/openmoji/master/color/72x72"
+
+# Bộ icon học tập / UI kiểu Material (OpenMoji PNG) — ~100 icon
+MATERIAL_ICON_URLS = {
+    # Học tập
+    "md_school.png": f"{BASE_OPENMOJI}/1F393.png",
+    "md_book.png": f"{BASE_OPENMOJI}/1F4D6.png",
+    "md_books.png": f"{BASE_OPENMOJI}/1F4DA.png",
+    "md_notebook.png": f"{BASE_OPENMOJI}/1F4D3.png",
+    "md_pencil.png": f"{BASE_OPENMOJI}/270F.png",
+    "md_pen.png": f"{BASE_OPENMOJI}/1F58A.png",
+    "md_crayon.png": f"{BASE_OPENMOJI}/1F58D.png",
+    "md_ruler.png": f"{BASE_OPENMOJI}/1F4CF.png",
+    "md_triangle_ruler.png": f"{BASE_OPENMOJI}/1F4D0.png",
+    "md_scissors.png": f"{BASE_OPENMOJI}/2702.png",
+    "md_paperclip.png": f"{BASE_OPENMOJI}/1F4CE.png",
+    "md_pushpin.png": f"{BASE_OPENMOJI}/1F4CC.png",
+    "md_memo.png": f"{BASE_OPENMOJI}/1F4DD.png",
+    "md_clipboard.png": f"{BASE_OPENMOJI}/1F4CB.png",
+    "md_folder.png": f"{BASE_OPENMOJI}/1F4C1.png",
+    "md_folder_open.png": f"{BASE_OPENMOJI}/1F4C2.png",
+    "md_file.png": f"{BASE_OPENMOJI}/1F4C4.png",
+    "md_page.png": f"{BASE_OPENMOJI}/1F4C3.png",
+    "md_backpack.png": f"{BASE_OPENMOJI}/1F392.png",
+    "md_briefcase.png": f"{BASE_OPENMOJI}/1F4BC.png",
+    # Toán / số
+    "md_123.png": f"{BASE_OPENMOJI}/1F522.png",
+    "md_abc.png": f"{BASE_OPENMOJI}/1F524.png",
+    "md_ab.png": f"{BASE_OPENMOJI}/1F520.png",
+    "md_calculator.png": f"{BASE_OPENMOJI}/1F5A9.png",
+    "md_plus.png": f"{BASE_OPENMOJI}/2795.png",
+    "md_minus.png": f"{BASE_OPENMOJI}/2796.png",
+    "md_multiply.png": f"{BASE_OPENMOJI}/2716.png",
+    "md_divide.png": f"{BASE_OPENMOJI}/2797.png",
+    "md_equals.png": f"{BASE_OPENMOJI}/1F7F0.png",
+    "md_percent.png": f"{BASE_OPENMOJI}/1F3A7.png",
+    "md_chart.png": f"{BASE_OPENMOJI}/1F4CA.png",
+    "md_bar_chart.png": f"{BASE_OPENMOJI}/1F4C8.png",
+    "md_pie_chart.png": f"{BASE_OPENMOJI}/1F4C9.png",
+    "md_triangle.png": f"{BASE_OPENMOJI}/1F53A.png",
+    "md_square.png": f"{BASE_OPENMOJI}/1F7E5.png",
+    "md_circle.png": f"{BASE_OPENMOJI}/1F534.png",
+    "md_diamond.png": f"{BASE_OPENMOJI}/1F537.png",
+    "md_hexagon.png": f"{BASE_OPENMOJI}/2B23.png",
+    # Khoa học / địa lý
+    "md_science.png": f"{BASE_OPENMOJI}/1F9EA.png",
+    "md_microscope.png": f"{BASE_OPENMOJI}/1F52C.png",
+    "md_telescope.png": f"{BASE_OPENMOJI}/1F52D.png",
+    "md_atom.png": f"{BASE_OPENMOJI}/269B.png",
+    "md_dna.png": f"{BASE_OPENMOJI}/1F9EC.png",
+    "md_globe.png": f"{BASE_OPENMOJI}/1F30D.png",
+    "md_globe_asia.png": f"{BASE_OPENMOJI}/1F30F.png",
+    "md_globe_americas.png": f"{BASE_OPENMOJI}/1F30E.png",
+    "md_compass.png": f"{BASE_OPENMOJI}/1F9ED.png",
+    "md_map.png": f"{BASE_OPENMOJI}/1F5FA.png",
+    "md_magnet.png": f"{BASE_OPENMOJI}/1F9F2.png",
+    "md_test_tube.png": f"{BASE_OPENMOJI}/1F9EA.png",
+    # Nghệ thuật / âm nhạc / thể thao
+    "md_music.png": f"{BASE_OPENMOJI}/1F3B5.png",
+    "md_music_notes.png": f"{BASE_OPENMOJI}/1F3B6.png",
+    "md_mic.png": f"{BASE_OPENMOJI}/1F3A4.png",
+    "md_headphones.png": f"{BASE_OPENMOJI}/1F3A7.png",
+    "md_guitar.png": f"{BASE_OPENMOJI}/1F3B8.png",
+    "md_piano.png": f"{BASE_OPENMOJI}/1F3B9.png",
+    "md_art.png": f"{BASE_OPENMOJI}/1F3A8.png",
+    "md_palette.png": f"{BASE_OPENMOJI}/1F3A8.png",
+    "md_movie.png": f"{BASE_OPENMOJI}/1F3AC.png",
+    "md_camera.png": f"{BASE_OPENMOJI}/1F4F7.png",
+    "md_sports.png": f"{BASE_OPENMOJI}/26BD.png",
+    "md_basketball.png": f"{BASE_OPENMOJI}/1F3C0.png",
+    "md_tennis.png": f"{BASE_OPENMOJI}/1F3BE.png",
+    "md_trophy.png": f"{BASE_OPENMOJI}/1F3C6.png",
+    "md_medal.png": f"{BASE_OPENMOJI}/1F3C5.png",
+    # Thời gian / lịch
+    "md_clock.png": f"{BASE_OPENMOJI}/1F552.png",
+    "md_alarm.png": f"{BASE_OPENMOJI}/23F0.png",
+    "md_hourglass.png": f"{BASE_OPENMOJI}/23F3.png",
+    "md_calendar.png": f"{BASE_OPENMOJI}/1F4C5.png",
+    "md_calendar_tear.png": f"{BASE_OPENMOJI}/1F4C6.png",
+    "md_stopwatch.png": f"{BASE_OPENMOJI}/23F1.png",
+    # Con người / xã hội
+    "md_people.png": f"{BASE_OPENMOJI}/1F465.png",
+    "md_person.png": f"{BASE_OPENMOJI}/1F464.png",
+    "md_family.png": f"{BASE_OPENMOJI}/1F46A.png",
+    "md_baby.png": f"{BASE_OPENMOJI}/1F476.png",
+    "md_handshake.png": f"{BASE_OPENMOJI}/1F91D.png",
+    "md_raising_hand.png": f"{BASE_OPENMOJI}/1F64B.png",
+    "md_wave.png": f"{BASE_OPENMOJI}/1F44B.png",
+    "md_thumbs_up.png": f"{BASE_OPENMOJI}/1F44D.png",
+    "md_thumbs_down.png": f"{BASE_OPENMOJI}/1F44E.png",
+    "md_clap.png": f"{BASE_OPENMOJI}/1F44F.png",
+    "md_ok_hand.png": f"{BASE_OPENMOJI}/1F44C.png",
+    "md_point_up.png": f"{BASE_OPENMOJI}/261D.png",
+    # UI / trạng thái
+    "md_home.png": f"{BASE_OPENMOJI}/1F3E0.png",
+    "md_star.png": f"{BASE_OPENMOJI}/2B50.png",
+    "md_star2.png": f"{BASE_OPENMOJI}/1F31F.png",
+    "md_heart.png": f"{BASE_OPENMOJI}/2764.png",
+    "md_check.png": f"{BASE_OPENMOJI}/2705.png",
+    "md_cross.png": f"{BASE_OPENMOJI}/274C.png",
+    "md_warning.png": f"{BASE_OPENMOJI}/26A0.png",
+    "md_info.png": f"{BASE_OPENMOJI}/2139.png",
+    "md_question.png": f"{BASE_OPENMOJI}/2753.png",
+    "md_exclamation.png": f"{BASE_OPENMOJI}/2757.png",
+    "md_lightbulb.png": f"{BASE_OPENMOJI}/1F4A1.png",
+    "md_bell.png": f"{BASE_OPENMOJI}/1F514.png",
+    "md_lock.png": f"{BASE_OPENMOJI}/1F512.png",
+    "md_unlock.png": f"{BASE_OPENMOJI}/1F513.png",
+    "md_key.png": f"{BASE_OPENMOJI}/1F511.png",
+    "md_search.png": f"{BASE_OPENMOJI}/1F50D.png",
+    "md_settings.png": f"{BASE_OPENMOJI}/2699.png",
+    "md_link.png": f"{BASE_OPENMOJI}/1F517.png",
+    "md_bookmark.png": f"{BASE_OPENMOJI}/1F516.png",
+    "md_flag.png": f"{BASE_OPENMOJI}/1F3F3.png",
+    "md_gift.png": f"{BASE_OPENMOJI}/1F381.png",
+    "md_balloon.png": f"{BASE_OPENMOJI}/1F388.png",
+    "md_party.png": f"{BASE_OPENMOJI}/1F389.png",
+    # Công nghệ
+    "md_laptop.png": f"{BASE_OPENMOJI}/1F4BB.png",
+    "md_desktop.png": f"{BASE_OPENMOJI}/1F5A5.png",
+    "md_phone.png": f"{BASE_OPENMOJI}/1F4F1.png",
+    "md_tablet.png": f"{BASE_OPENMOJI}/1F4F2.png",
+    "md_keyboard.png": f"{BASE_OPENMOJI}/2328.png",
+    "md_mouse.png": f"{BASE_OPENMOJI}/1F5B1.png",
+    "md_printer.png": f"{BASE_OPENMOJI}/1F5A8.png",
+    "md_battery.png": f"{BASE_OPENMOJI}/1F50B.png",
+    "md_wifi.png": f"{BASE_OPENMOJI}/1F4F6.png",
+    "md_satellite.png": f"{BASE_OPENMOJI}/1F4E1.png",
+    "md_robot.png": f"{BASE_OPENMOJI}/1F916.png",
+    "md_game.png": f"{BASE_OPENMOJI}/1F3AE.png",
+    # Giao thông / nơi chốn
+    "md_bus.png": f"{BASE_OPENMOJI}/1F68C.png",
+    "md_car.png": f"{BASE_OPENMOJI}/1F697.png",
+    "md_bike.png": f"{BASE_OPENMOJI}/1F6B2.png",
+    "md_train.png": f"{BASE_OPENMOJI}/1F686.png",
+    "md_plane.png": f"{BASE_OPENMOJI}/2708.png",
+    "md_ship.png": f"{BASE_OPENMOJI}/1F6A2.png",
+    "md_hospital.png": f"{BASE_OPENMOJI}/1F3E5.png",
+    "md_bank.png": f"{BASE_OPENMOJI}/1F3E6.png",
+    "md_office.png": f"{BASE_OPENMOJI}/1F3E2.png",
+    "md_park.png": f"{BASE_OPENMOJI}/1F3DE.png",
+    # Thời tiết / thiên nhiên
+    "md_sun.png": f"{BASE_OPENMOJI}/2600.png",
+    "md_moon.png": f"{BASE_OPENMOJI}/1F319.png",
+    "md_cloud.png": f"{BASE_OPENMOJI}/2601.png",
+    "md_rain.png": f"{BASE_OPENMOJI}/1F327.png",
+    "md_snow.png": f"{BASE_OPENMOJI}/2744.png",
+    "md_rainbow.png": f"{BASE_OPENMOJI}/1F308.png",
+    "md_tree.png": f"{BASE_OPENMOJI}/1F333.png",
+    "md_flower.png": f"{BASE_OPENMOJI}/1F33C.png",
+    "md_leaf.png": f"{BASE_OPENMOJI}/1F343.png",
+    "md_fire.png": f"{BASE_OPENMOJI}/1F525.png",
+    "md_water.png": f"{BASE_OPENMOJI}/1F4A7.png",
+    # Động vật phổ biến (dạy học)
+    "md_dog.png": f"{BASE_OPENMOJI}/1F436.png",
+    "md_cat.png": f"{BASE_OPENMOJI}/1F431.png",
+    "md_bird.png": f"{BASE_OPENMOJI}/1F426.png",
+    "md_fish.png": f"{BASE_OPENMOJI}/1F41F.png",
+    "md_rabbit.png": f"{BASE_OPENMOJI}/1F430.png",
+    "md_bear.png": f"{BASE_OPENMOJI}/1F43B.png",
+    "md_lion.png": f"{BASE_OPENMOJI}/1F981.png",
+    "md_elephant.png": f"{BASE_OPENMOJI}/1F418.png",
+    "md_butterfly.png": f"{BASE_OPENMOJI}/1F98B.png",
+    "md_bee.png": f"{BASE_OPENMOJI}/1F41D.png",
+    # Trái cây / thực phẩm
+    "md_apple.png": f"{BASE_OPENMOJI}/1F34E.png",
+    "md_banana.png": f"{BASE_OPENMOJI}/1F34C.png",
+    "md_orange.png": f"{BASE_OPENMOJI}/1F34A.png",
+    "md_grape.png": f"{BASE_OPENMOJI}/1F347.png",
+    "md_strawberry.png": f"{BASE_OPENMOJI}/1F353.png",
+    "md_watermelon.png": f"{BASE_OPENMOJI}/1F349.png",
+    "md_carrot.png": f"{BASE_OPENMOJI}/1F955.png",
+    "md_bread.png": f"{BASE_OPENMOJI}/1F35E.png",
+    "md_milk.png": f"{BASE_OPENMOJI}/1F95B.png",
+    "md_egg.png": f"{BASE_OPENMOJI}/1F95A.png",
+}
 
 ICON_URLS = {
      "tao.png": "https://cdn-icons-png.flaticon.com/128/415/415733.png",       
@@ -311,7 +489,6 @@ def get_all_icons(category: Optional[str] = None, style: Optional[str] = None, d
         
         if os.path.exists(filepath):
             try:
-                img = Image.open(filepath).convert("RGBA").resize((60, 60))
                 icons.append({
                     "id": name.replace(".png", ""),
                     "name": name,
@@ -324,6 +501,26 @@ def get_all_icons(category: Optional[str] = None, style: Optional[str] = None, d
                 })
             except Exception as e:
                 print(f"Error loading icon {name}: {str(e)}")
+
+    # Material-style education icons (OpenMoji PNGs, category=material)
+    for name, url in MATERIAL_ICON_URLS.items():
+        filepath = os.path.join(ICONS_DIR, name)
+        if download_missing and not os.path.exists(filepath):
+            download_icon(url, name)
+        if os.path.exists(filepath):
+            try:
+                icons.append({
+                    "id": name.replace(".png", ""),
+                    "name": name,
+                    "display_name": name.replace("md_", "").replace(".png", "").replace("_", " "),
+                    "path": filepath,
+                    "category": "material",
+                    "style": "default",
+                    "source": "material",
+                    "size": (60, 60)
+                })
+            except Exception as e:
+                print(f"Error loading material icon {name}: {str(e)}")
     
     icons.extend(_scan_cao_icons())
 
