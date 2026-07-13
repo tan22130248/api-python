@@ -12,6 +12,7 @@ from app.api import (
     translate_file
 )
 from .core.config import init_cloudinary
+from .middleware.action_logging import ActionLoggingMiddleware
 import logging
 import os
 
@@ -23,6 +24,8 @@ app = FastAPI(
     description="API for converting Vietnamese text to speech and generating images from descriptions",
     version="1.0.0"
 )
+
+app.add_middleware(ActionLoggingMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
