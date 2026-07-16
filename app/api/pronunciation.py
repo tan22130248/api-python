@@ -96,7 +96,8 @@ async def check_pronunciation(
                 message="Kiểm tra phát âm thành công",
                 recognized_text=result["recognized_text"],
                 accuracy_score=result["accuracy_score"],
-                feedback=result["feedback"]
+                feedback=result["feedback"],
+                model_used="faster-whisper"
             )
             
         finally:
@@ -108,3 +109,47 @@ async def check_pronunciation(
         raise he
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Lỗi: {str(e)}")
+
+
+@router.post("/check-vosk", response_model=PronunciationResponse)
+async def check_pronunciation_vosk(
+    target_text: str = Form(...),
+    audio_file: UploadFile = File(...)
+):
+    """Kiểm tra phát âm bằng model Vosk cục bộ, độc lập với Faster-Whisper."""
+    try:
+        if not target_text or target_text.strip() == "":
+            raise HTTPException(status_code=400, detail="Target text không được để trống")
+        if not audio_file or not audio_file.filename:
+            raise HTTPException(status_code=400, detail="File âm thanh là bắt buộc")
+
+        content_type = audio_file.content_type or ''
+        if content_type not in SUPPORTED_AUDIO_TYPES:
+            supported_extensions = ['.wav', '.mp3', '.webm', '.ogg', '.m4a']
+            if not any(audio_file.filename.lower().endswith(ext) for ext in supported_extensions):
+                raise HTTPException(status_code=400, detail="Chỉ hỗ trợ file WAV, MP3, WEBM, OGG hoặc M4A")
+
+        suffix = get_audio_suffix(audio_file.filename, content_type)
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
+            temp_file.write(await audio_file.read())
+            temp_file_path = temp_file.name
+
+        try:
+            from app.services.vosk_pronunciation_service import check_pronunciation as check_vosk
+
+            result = check_vosk(temp_file_path, target_text)
+            return PronunciationResponse(
+                success=True,
+                message="Kiểm tra phát âm bằng Vosk thành công",
+                recognized_text=result["recognized_text"],
+                accuracy_score=result["accuracy_score"],
+                feedback=result["feedback"],
+                model_used=result["model_used"]
+            )
+        finally:
+            if os.path.exists(temp_file_path):
+                os.unlink(temp_file_path)
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lỗi Vosk: {str(e)}")
