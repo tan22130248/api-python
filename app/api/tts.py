@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 from app.schemas.tts_schema import TTSRequest
 from app.services.tts_service import SUPPORTED_LANGUAGES, convert_text_to_speech
 from pydantic import BaseModel
+from typing import Optional
 
 router = APIRouter()
 
@@ -9,8 +10,9 @@ router = APIRouter()
 class TTSConvertResponse(BaseModel):
     success: bool
     message: str
-    filename: str = None
-    error: str = None
+    filename: Optional[str] = None
+    audio_base64: Optional[str] = None
+    error: Optional[str] = None
 
 
 @router.get("/health")
@@ -41,7 +43,7 @@ async def tts_languages():
 
 @router.post("/convert", response_model=TTSConvertResponse)
 async def tts_convert(request: TTSRequest):
-    """Convert text to speech (multi-language via gTTS)."""
+    """Convert text to speech (multi-language via gTTS). Returns base64 for cross-container upload."""
     try:
         if not request.text or request.text.strip() == "":
             raise HTTPException(status_code=400, detail="Text không được để trống")
@@ -49,19 +51,20 @@ async def tts_convert(request: TTSRequest):
         if len(request.text) > 5000:
             raise HTTPException(status_code=400, detail="Text không được vượt quá 5000 ký tự")
 
-        filename = convert_text_to_speech(
+        filepath, audio_b64 = convert_text_to_speech(
             request.text,
             language=request.language or "vi",
             slow=bool(request.slow),
         )
 
-        if not filename:
+        if not audio_b64:
             raise HTTPException(status_code=400, detail="Lỗi chuyển đổi text thành giọng nói")
 
         return TTSConvertResponse(
             success=True,
             message="Chuyển đổi thành công",
-            filename=filename,
+            filename=filepath,
+            audio_base64=audio_b64,
         )
 
     except HTTPException as he:
