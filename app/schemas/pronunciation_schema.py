@@ -19,6 +19,7 @@ class PronunciationResponse(BaseModel):
     recognized_text: Optional[str] = None
     accuracy_score: Optional[str] = None
     feedback: Optional[str] = None
+    model_used: Optional[str] = None
     
     class Config:
         json_schema_extra = {
@@ -27,6 +28,7 @@ class PronunciationResponse(BaseModel):
                 "message": "Kiểm tra phát âm thành công",
                 "recognized_text": "apple",
                 "accuracy_score": "95.2%",
-                "feedback": "Tuyệt đối! (Perfect)"
+                "feedback": "Tuyệt đối! (Perfect)",
+                "model_used": "vosk"
             }
         }
