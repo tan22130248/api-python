@@ -50,8 +50,11 @@ async def get_icons(request: Request, category: Optional[str] = None, style: Opt
     from app.services.canvas_service import get_all_icons, get_all_icon_filters
     
     try:
-        icons = get_all_icons(category=category, style=style)
+        # download_missing=True so deploy containers without pre-seeded icons still work
+        icons = get_all_icons(category=category, style=style, download_missing=True)
         filters = get_all_icon_filters()
+        # Prefer relative path so browser uses same-origin /python-api proxy
+        base = str(request.base_url).rstrip("/")
         return JSONResponse(
             content={
                 "success": True,
@@ -63,7 +66,7 @@ async def get_icons(request: Request, category: Optional[str] = None, style: Opt
                         "category": icon.get("category", "default"),
                         "style": icon.get("style", "default"),
                         "source": icon.get("source", "default"),
-                        "url": str(request.url_for("get_icon_file", icon_name=icon["name"]))
+                        "url": f"{base}/api/canvas/icon/{icon['name']}",
                     }
                     for icon in icons
                 ],
