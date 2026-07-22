@@ -66,7 +66,7 @@ async def get_icons(request: Request, category: Optional[str] = None, style: Opt
                         "category": icon.get("category", "default"),
                         "style": icon.get("style", "default"),
                         "source": icon.get("source", "default"),
-                        "url": f"{base}/api/canvas/icon/{icon['name']}",
+                        "url": f"/api/canvas/icon/{icon['name']}",
                     }
                     for icon in icons
                 ],
