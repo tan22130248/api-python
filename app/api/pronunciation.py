@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, File, Form, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from app.schemas.pronunciation_schema import PronunciationResponse
 import os
 import tempfile
@@ -42,6 +43,21 @@ SUPPORTED_AUDIO_TYPES = {
     'audio/opus',
 }
 
+MAX_AUDIO_SIZE = 25 * 1024 * 1024
+
+
+async def save_uploaded_audio(audio_file: UploadFile) -> str:
+    contents = await audio_file.read()
+    if not contents:
+        raise HTTPException(status_code=400, detail="File âm thanh đang trống")
+    if len(contents) > MAX_AUDIO_SIZE:
+        raise HTTPException(status_code=413, detail="File âm thanh không được vượt quá 25 MB")
+
+    suffix = get_audio_suffix(audio_file.filename or "", audio_file.content_type or "")
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
+        temp_file.write(contents)
+        return temp_file.name
+
 @router.get("/health")
 async def pronunciation_health():
     """Pronunciation Service health check"""
@@ -80,16 +96,12 @@ async def check_pronunciation(
             if not any(audio_file.filename.lower().endswith(ext) for ext in ['.wav', '.mp3', '.webm', '.ogg', '.m4a']):
                 raise HTTPException(status_code=400, detail="Chỉ hỗ trợ file WAV, MP3, WEBM, OGG hoặc M4A")
 
-        suffix = get_audio_suffix(audio_file.filename, content_type)
-        # Save uploaded file temporarily
-        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
-            temp_file.write(await audio_file.read())
-            temp_file_path = temp_file.name
+        temp_file_path = await save_uploaded_audio(audio_file)
         
         try:
             from app.services.pronunciation_service import check_pronunciation as check_svc
             
-            result = check_svc(temp_file_path, target_text)
+            result = await run_in_threadpool(check_svc, temp_file_path, target_text.strip())
             
             return PronunciationResponse(
                 success=True,
@@ -129,15 +141,12 @@ async def check_pronunciation_vosk(
             if not any(audio_file.filename.lower().endswith(ext) for ext in supported_extensions):
                 raise HTTPException(status_code=400, detail="Chỉ hỗ trợ file WAV, MP3, WEBM, OGG hoặc M4A")
 
-        suffix = get_audio_suffix(audio_file.filename, content_type)
-        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
-            temp_file.write(await audio_file.read())
-            temp_file_path = temp_file.name
+        temp_file_path = await save_uploaded_audio(audio_file)
 
         try:
             from app.services.vosk_pronunciation_service import check_pronunciation as check_vosk
 
-            result = check_vosk(temp_file_path, target_text)
+            result = await run_in_threadpool(check_vosk, temp_file_path, target_text.strip())
             return PronunciationResponse(
                 success=True,
                 message="Kiểm tra phát âm bằng Vosk thành công",
