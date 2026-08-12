@@ -7,6 +7,7 @@ from docx.shared import Pt, RGBColor, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 import io
 import logging
+import re
 import urllib.request
 import urllib.error
 
@@ -206,7 +207,14 @@ def _add_image_from_url(doc, image_url: str):
             image_stream = io.BytesIO(image_bytes)
             image_para = doc.add_paragraph()
             run = image_para.add_run()
-            run.add_picture(image_stream, width=Inches(5.5))
+            picture = run.add_picture(image_stream)
+
+            # Fit each image inside one predictable area without distorting it.
+            max_width = Inches(5.5)
+            max_height = Inches(3.5)
+            scale = min(max_width / picture.width, max_height / picture.height, 1)
+            picture.width = int(picture.width * scale)
+            picture.height = int(picture.height * scale)
             image_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
     except Exception as e:
         logger.warning(f"Cannot download image from URL '{image_url}': {e}")
@@ -247,7 +255,8 @@ def _add_matching_question(doc, question_num: int, question: QuestionDTO, includ
     # Create table for matching pairs
     if question.matchingPairs:
         table = doc.add_table(rows=1, cols=2)
-        table.style = 'Light Grid Accent 1'
+        # Use a neutral black-and-white grid; do not inherit Word accent colors.
+        table.style = 'Table Grid'
         
         # Header row - swap columns if no answers
         hdr_cells = table.rows[0].cells
@@ -300,12 +309,14 @@ def _add_fill_in_blank_question(doc, question_num: int, question: QuestionDTO, i
     
     # Display text with blanks
     if question.textWithBlanks:
-        # Replace blank markers with underscores
+        # Blank IDs may be temporary timestamps while the text uses [BLANK_1],
+        # [BLANK_2], etc. Replace markers by their order, not by the internal ID.
         display_text = question.textWithBlanks
-        if question.blanks:
-            for blank in question.blanks:
-                blank_id = blank.get('id', '')
-                display_text = display_text.replace(f'[BLANK_{blank_id}]', '___________')
+        blank_marker = re.compile(r'\[BLANK_[^\]]+\]')
+        for _ in question.blanks or []:
+            display_text = blank_marker.sub('___________', display_text, count=1)
+        # Do not leave an unresolved marker if a legacy payload has more markers.
+        display_text = blank_marker.sub('___________', display_text)
         
         text_para = doc.add_paragraph(f"Đoạn văn: {display_text}")
         text_para.paragraph_format.left_indent = Inches(0.25)
@@ -313,8 +324,8 @@ def _add_fill_in_blank_question(doc, question_num: int, question: QuestionDTO, i
         # Show answers if requested
         if include_answers and question.blanks:
             doc.add_paragraph("Đáp án:")
-            for blank in question.blanks:
-                answer_text = f"Chỗ trống {blank.get('id', '')}: {blank.get('correctAnswer', '')}"
+            for blank_number, blank in enumerate(question.blanks, start=1):
+                answer_text = f"Chỗ trống {blank_number}: {blank.get('correctAnswer', '')}"
                 answer_para = doc.add_paragraph(answer_text)
                 answer_para.paragraph_format.left_indent = Inches(0.5)
 
