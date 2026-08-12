@@ -12,6 +12,37 @@ import urllib.error
 
 router = APIRouter(prefix="/api/docx", tags=["docx"])
 logger = logging.getLogger(__name__)
+BLACK = RGBColor(0, 0, 0)
+
+
+def _set_paragraph_text_black(paragraph):
+    """Apply a consistent black font color to every textual run in a paragraph."""
+    for run in paragraph.runs:
+        run.font.color.rgb = BLACK
+
+
+def _set_table_text_black(table):
+    """Apply the document text color recursively, including nested tables."""
+    for row in table.rows:
+        for cell in row.cells:
+            for paragraph in cell.paragraphs:
+                _set_paragraph_text_black(paragraph)
+            for nested_table in cell.tables:
+                _set_table_text_black(nested_table)
+
+
+def _set_document_text_black(doc):
+    """Ensure generated DOCX files never inherit colored heading/table styles."""
+    for paragraph in doc.paragraphs:
+        _set_paragraph_text_black(paragraph)
+    for table in doc.tables:
+        _set_table_text_black(table)
+    for section in doc.sections:
+        for container in (section.header, section.footer):
+            for paragraph in container.paragraphs:
+                _set_paragraph_text_black(paragraph)
+            for table in container.tables:
+                _set_table_text_black(table)
 
 # Define Pydantic models
 class AnswerDTO(BaseModel):
@@ -117,6 +148,9 @@ async def generate_test_docx(request: CreateTestRequest):
             
             doc.add_paragraph()  # Add spacing between questions
         
+        # Keep all output text black, including Word heading/table styles.
+        _set_document_text_black(doc)
+
         # Save to bytes
         doc_io = io.BytesIO()
         doc.save(doc_io)
@@ -347,6 +381,9 @@ async def generate_test_docx_stream(request: CreateTestRequest):
                 _add_audio_question(doc, idx, question)
             doc.add_paragraph()
         
+        # Keep all output text black, including Word heading/table styles.
+        _set_document_text_black(doc)
+
         # Save to bytes
         doc_io = io.BytesIO()
         doc.save(doc_io)
