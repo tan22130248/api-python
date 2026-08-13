@@ -7,6 +7,7 @@ from docx.shared import Pt, RGBColor, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 import io
 import logging
+import random
 import re
 import urllib.request
 import urllib.error
@@ -258,42 +259,35 @@ def _add_matching_question(doc, question_num: int, question: QuestionDTO, includ
         # Use a neutral black-and-white grid; do not inherit Word accent colors.
         table.style = 'Table Grid'
         
-        # Header row - swap columns if no answers
+        # The teacher version keeps every matching pair on its answer row.
+        # The student version keeps the left column in order but rearranges the
+        # right column, so copying rows cannot reveal the answer.
         hdr_cells = table.rows[0].cells
         if include_answers:
             hdr_cells[0].text = 'Cột trái'
             hdr_cells[1].text = 'Cột phải'
+            rows = [(pair.get('left', ''), pair.get('right', '')) for pair in question.matchingPairs]
         else:
-            hdr_cells[0].text = 'Cột phải'
-            hdr_cells[1].text = 'Cột trái'
-        
-        # Add matching pairs - swap columns if no answers
-        for pair in question.matchingPairs:
+            hdr_cells[0].text = 'Cột A'
+            hdr_cells[1].text = 'Cột B'
+            right_indexes = list(range(len(question.matchingPairs)))
+            if len(right_indexes) > 1:
+                # Shuffle until no right-side item remains next to its own left-side item.
+                for _ in range(10):
+                    random.shuffle(right_indexes)
+                    if all(index != right_index for index, right_index in enumerate(right_indexes)):
+                        break
+                else:
+                    right_indexes = right_indexes[1:] + right_indexes[:1]
+            rows = [
+                (pair.get('left', ''), question.matchingPairs[right_index].get('right', ''))
+                for pair, right_index in zip(question.matchingPairs, right_indexes)
+            ]
+
+        for left_value, right_value in rows:
             row_cells = table.add_row().cells
-            if include_answers:
-                row_cells[0].text = pair.get('left', '')
-                row_cells[1].text = pair.get('right', '')
-            else:
-                # For student version: show right column first, left column second
-                row_cells[0].text = pair.get('right', '')
-                row_cells[1].text = pair.get('left', '')
-                
-                # Set black color for text
-                for cell in row_cells:
-                    for paragraph in cell.paragraphs:
-                        for run in paragraph.runs:
-                            run.font.color.rgb = RGBColor(0, 0, 0)  # Black color
-        
-        # Add empty row with "..." for student to fill answers if no answers
-        if not include_answers:
-            empty_row = table.add_row().cells
-            empty_row[0].text = '...'
-            empty_row[1].text = '...'
-            # Set black color for the dots
-            for cell in empty_row:
-                for paragraph in cell.paragraphs:
-                    for run in paragraph.runs:
-                        run.font.color.rgb = RGBColor(0, 0, 0)
+            row_cells[0].text = left_value
+            row_cells[1].text = right_value
 
 
 def _add_fill_in_blank_question(doc, question_num: int, question: QuestionDTO, include_answers: bool = True):
