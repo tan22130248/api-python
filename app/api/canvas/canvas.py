@@ -1,11 +1,18 @@
 from fastapi import APIRouter, HTTPException, UploadFile, File, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse, FileResponse
 from pydantic import BaseModel, field_validator
 from typing import List, Optional
+import asyncio
 import mimetypes
 from datetime import datetime
+from io import BytesIO
+from uuid import uuid4
 
 router = APIRouter()
+
+MAX_AUDIO_UPLOAD_BYTES = 10 * 1024 * 1024
+CLOUDINARY_UPLOAD_TIMEOUT_SECONDS = 60
 
 class PlacedIcon(BaseModel):
     id: int
@@ -224,43 +231,54 @@ async def upload_image(file: UploadFile = File(...)):
 
 @router.post("/upload-audio")
 async def upload_audio(file: UploadFile = File(...)):
-    """
-    Upload audio file to Cloudinary
-    Frontend sends audio file, we upload to Cloudinary and return URL
-    """
+    """Upload an audio file to Cloudinary without blocking the API event loop."""
     try:
         if not file.filename:
-            raise HTTPException(status_code=400, detail="No file provided")
-        
-        if not file.content_type.startswith('audio/'):
+            raise HTTPException(status_code=400, detail="No audio file was provided")
+
+        content_type = file.content_type or ""
+        if not content_type.startswith("audio/"):
             raise HTTPException(status_code=400, detail="File must be an audio file")
-        
-        import cloudinary.uploader
-        from io import BytesIO
-        
+
         contents = await file.read()
-        
-        result = cloudinary.uploader.upload(
-            BytesIO(contents),
-            folder="audio_uploads",
-            resource_type="auto",
-            public_id=f"audio_{int(datetime.now().timestamp())}",
-            type="upload"
-        )
-        
-        if result.get('secure_url'):
+        if not contents:
+            raise HTTPException(status_code=400, detail="Audio file is empty")
+        if len(contents) > MAX_AUDIO_UPLOAD_BYTES:
+            raise HTTPException(status_code=413, detail="Audio file exceeds the 10 MB upload limit")
+
+        def upload_to_cloudinary():
+            import cloudinary.uploader
+
+            return cloudinary.uploader.upload(
+                BytesIO(contents),
+                folder="audio_uploads",
+                resource_type="video",
+                public_id=f"audio_{uuid4().hex}",
+                type="upload",
+                timeout=CLOUDINARY_UPLOAD_TIMEOUT_SECONDS,
+            )
+
+        try:
+            result = await asyncio.wait_for(
+                run_in_threadpool(upload_to_cloudinary),
+                timeout=CLOUDINARY_UPLOAD_TIMEOUT_SECONDS + 5,
+            )
+        except asyncio.TimeoutError as exc:
+            raise HTTPException(status_code=503, detail="Audio storage is busy. Please try again.") from exc
+
+        if result.get("secure_url"):
             return {
                 "success": True,
                 "message": "Audio uploaded successfully",
-                "audio_url": result['secure_url'],
-                "public_id": result.get('public_id')
+                "audio_url": result["secure_url"],
+                "public_id": result.get("public_id"),
             }
-        else:
-            raise HTTPException(status_code=500, detail="Upload to Cloudinary failed")
-    
+        raise HTTPException(status_code=502, detail="Cloudinary did not return an audio URL")
+
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception as exc:
         import traceback
+
         print(f"Error uploading audio: {traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=f"Error uploading audio: {str(e)}")
+        raise HTTPException(status_code=502, detail="Audio upload failed. Please try again.") from exc

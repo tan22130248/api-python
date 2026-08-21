@@ -17,6 +17,10 @@ COPY requirements.txt .
 # Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Download the recognition model during image build so the first student request never waits for it.
+ENV WHISPER_MODEL_NAME=base
+ENV WHISPER_DOWNLOAD_ROOT=/opt/faster-whisper
+RUN python -c "from faster_whisper import WhisperModel; WhisperModel('base', device='cpu', compute_type='int8', download_root='/opt/faster-whisper')"
 # Copy application source code
 COPY . .
 

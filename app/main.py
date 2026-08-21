@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.concurrency import run_in_threadpool
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from app.api import (
@@ -13,16 +14,27 @@ from app.api import (
 )
 from .core.config import init_cloudinary
 from .middleware.action_logging import ActionLoggingMiddleware
+from contextlib import asynccontextmanager
 import logging
 import os
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    logger.info("Loading the Faster-Whisper model before accepting requests")
+    from app.services.pronunciation_service import get_whisper_model
+
+    await run_in_threadpool(get_whisper_model)
+    logger.info("Faster-Whisper model is ready")
+    yield
+
 app = FastAPI(
     title="AI Service - Text to Speech and Image Generation",
     description="API for converting Vietnamese text to speech and generating images from descriptions",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(ActionLoggingMiddleware)

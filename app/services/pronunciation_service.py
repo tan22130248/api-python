@@ -2,9 +2,12 @@ import difflib
 import re
 import unicodedata
 from threading import Lock
+import os
 
 from faster_whisper import WhisperModel
 
+WHISPER_MODEL_NAME = os.getenv('WHISPER_MODEL_NAME', 'base')
+WHISPER_DOWNLOAD_ROOT = os.getenv('WHISPER_DOWNLOAD_ROOT')
 
 _whisper_model = None
 _model_lock = Lock()
@@ -18,7 +21,10 @@ def get_whisper_model():
 
     with _model_lock:
         if _whisper_model is None:
-            _whisper_model = WhisperModel("base", device="cpu", compute_type="int8")
+            model_options = {"device": "cpu", "compute_type": "int8"}
+            if WHISPER_DOWNLOAD_ROOT:
+                model_options["download_root"] = WHISPER_DOWNLOAD_ROOT
+            _whisper_model = WhisperModel(WHISPER_MODEL_NAME, **model_options)
     return _whisper_model
 
 
