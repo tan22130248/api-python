@@ -1,10 +1,23 @@
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from fastapi.responses import Response
 import logging
+from urllib.parse import quote
 from app.services.file_translation_service import translate_docx_file, translate_txt_file, translate_pptx_file
 
 router = APIRouter(prefix="/api/translate", tags=["translate-file"])
 logger = logging.getLogger(__name__)
+
+
+def _translated_content_disposition(filename: str) -> str:
+    """Build an ASCII-only HTTP header while preserving Unicode names via RFC 5987."""
+    original_name = (filename or "document").replace("\\", "/").split("/")[-1]
+    translated_name = f"translated_{original_name}"
+    ascii_name = "".join(
+        char if char.isascii() and (char.isalnum() or char in ".-_") else "_"
+        for char in translated_name
+    ).strip(".") or "translated_document"
+    encoded_name = quote(translated_name, safe="")
+    return f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{encoded_name}"
 
 
 @router.post("/document/file")
@@ -30,7 +43,7 @@ async def translate_document_file(
             return Response(
                 content=translated_bytes,
                 media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                headers={"Content-Disposition": f'attachment; filename="translated_{file.filename}"'}
+                headers={"Content-Disposition": _translated_content_disposition(file.filename)}
             )
 
         elif filename.endswith(".txt"):
@@ -38,7 +51,7 @@ async def translate_document_file(
             return Response(
                 content=translated_bytes,
                 media_type="text/plain",
-                headers={"Content-Disposition": f'attachment; filename="translated_{file.filename}"'}
+                headers={"Content-Disposition": _translated_content_disposition(file.filename)}
             )
 
         elif filename.endswith(".pptx"):
@@ -46,7 +59,7 @@ async def translate_document_file(
             return Response(
                 content=translated_bytes,
                 media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                headers={"Content-Disposition": f'attachment; filename="translated_{file.filename}"'}
+                headers={"Content-Disposition": _translated_content_disposition(file.filename)}
             )
 
         else:
